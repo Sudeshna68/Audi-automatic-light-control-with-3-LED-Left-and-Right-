@@ -1,0 +1,142 @@
+module Audi (
+    input clk, reset,   
+    input HAZ, // LED sequence control
+    input LS,   // Left Switch
+    input RS,   // Right Switch
+    input LRS,  // All LEDs ON
+  output reg [5:0] out  // Output to the LED matrix
+);
+
+// Define state encoding
+typedef enum reg [2:0] {
+    IDLE = 3'b000,
+    L1   = 3'b001,
+    L2   = 3'b010,
+    L3   = 3'b011,
+    R1   = 3'b100,
+    R2   = 3'b101,
+    R3   = 3'b110,
+    LR3  = 3'b111
+} state;
+
+reg [2:0] current_state, next_state;
+             
+// State transition logic
+always @(posedge clk or posedge reset) begin
+    if (reset) begin
+        current_state <= IDLE;
+    end else begin
+        current_state <= next_state;
+    end
+end
+
+// Next state and output logic
+always @(*) begin
+
+    next_state = current_state;
+    out = 6'b000000;
+    
+    case (current_state)
+        IDLE: begin
+            if (LS && !LRS)
+                next_state = L1;
+            else if (RS && !LRS)
+                next_state = R1;
+            else if (LRS)
+                next_state = LR3;
+        end
+        
+        L1: begin
+            out = 6'b100000;
+            next_state = (HAZ) ? LR3 : L2;
+        end
+        
+        L2: begin
+            out = 6'b010000;
+            next_state = (HAZ) ? LR3 : L3;
+        end
+        
+        L3: begin
+            out = 6'b001000;
+            next_state = IDLE;
+        end
+        
+        R1: begin
+            out = 6'b000100;
+            next_state = (HAZ) ? LR3 : R2;
+        end
+        
+        R2: begin
+            out = 6'b000010;
+            next_state = (HAZ) ? LR3 : R3;
+        end
+        
+        R3: begin
+            out = 6'b000001;
+            next_state = IDLE;
+        end
+        
+        LR3: begin
+            out = 6'b111111;
+        end
+        
+        default: begin
+            out = 6'b000000;
+            next_state = IDLE;
+        end
+    endcase
+end
+
+endmodule
+
+
+
+
+
+
+
+
+
+TESTBENCH:
+
+module tb_Audi;
+
+// Inputs
+reg clk, reset, LS, RS, LRS, HAZ;
+
+// Outputs
+wire [5:0] out;
+
+// Instantiate the Unit Under Test (UUT)
+  Audi uut (.clk(clk), .reset(reset), .LS(LS), .RS(RS), .LRS(LRS), .HAZ(HAZ), .out(out));
+
+// Clock generation
+initial begin
+    clk = 0;
+    forever #5 clk = ~clk; // 10ns clock period
+end
+
+
+initial begin
+    // Initialize inputs
+    reset = 1; LS = 0; RS = 0; LRS = 0; HAZ = 0;
+    
+    #10; reset = 0; LS = 1; LRS = 0;
+
+    #10; LS = 0; RS = 1;
+    
+    #10; LS = 1; RS = 0; LRS = 0;
+
+    #10; LS = 1; RS = 0; LRS = 0; HAZ = 1;
+
+    #10; LRS = 1;
+    
+    #2 $finish;
+end
+
+// Monitor outputs
+initial begin
+    $monitor("out = %b",out);
+end
+
+endmodule
