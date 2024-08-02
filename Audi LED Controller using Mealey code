@@ -1,0 +1,87 @@
+module Audi (
+    input clk, reset,   
+    input HAZ, // LED sequence control
+    input LS,   // Left Switch
+    input RS,   // Right Switch
+    input LRS,  // All LEDs ON
+    output reg [5:0] out  // Output to the LED matrix
+);
+
+// Define state encoding
+typedef enum reg [2:0] {
+    IDLE = 3'b000,
+    L1   = 3'b001,
+    L2   = 3'b010,
+    L3   = 3'b011,
+    R1   = 3'b100,
+    R2   = 3'b101,
+    R3   = 3'b110,
+    LR3  = 3'b111
+} state;
+
+ reg state [2:0] current_state, next_state;
+
+// State transition logic
+always @(posedge clk or posedge reset) begin
+    if (reset) begin
+        current_state <= IDLE;
+    end else begin
+        current_state <= next_state;
+    end
+end
+
+// Next state and output logic
+always @(*) begin
+    next_state = current_state;
+    case (current_state)
+        IDLE: begin
+            if (LS && !LRS)
+                next_state = L1;
+            else if (RS && !LRS)
+                next_state = R1;
+            else if (LRS)
+                next_state = LR3;
+        end
+        
+        L1: next_state = (HAZ) ? LR3 : L2;
+        L2: next_state = (HAZ) ? LR3 : L3;
+        L3: next_state = IDLE;
+        
+        R1: next_state = (HAZ) ? LR3 : R2;
+        R2: next_state = (HAZ) ? LR3 : R3;
+        R3: next_state = IDLE;
+        
+        LR3: next_state = IDLE;
+        
+        default: next_state = IDLE;
+    endcase
+end
+
+always @(*) begin
+    case (current_state)
+        IDLE: begin
+            if (LRS)
+                out = 6'b111111;
+            else if (LS)
+                out = 6'b100000;
+            else if (RS)
+                out = 6'b000100;
+            else
+                out = 6'b000000;
+        end
+        
+        L1: out = (HAZ) ? 6'b111111 : 6'b010000;
+        L2: out = (HAZ) ? 6'b111111 : 6'b001000;
+        L3: out = 6'b000000;
+        
+        R1: out = (HAZ) ? 6'b111111 : 6'b000010;
+        R2: out = (HAZ) ? 6'b111111 : 6'b000001;
+        R3: out = 6'b000000;
+        
+        LR3: out = 6'b111111;
+        
+        default: out = 6'b000000;
+    endcase
+end
+
+endmodule
